@@ -8,6 +8,16 @@
   "max_mileage": 125001,
   "currency": "EUR",
   "exclude_keywords": ["peugeot", "citroen", "citroën"],
+  "padel_alert": {
+    "search_urls": {
+      "Tennis-Point.nl": "https://www.tennis-point.nl/search?q=coello%20motion",
+      "Padelshop.com": "https://padelshop.com/search?q=coello%20motion&type=product"
+    },
+    "max_price": 150,
+    "years": [2025, 2026],
+    "exclude_terms": ["pro", "plus", "bag", "tas", "cover"],
+    "max_results": 30
+  },
   "alert_email": "ssalpiero@gmail.com",
   "timezone": "Europe/Amsterdam",
   "run_hour": 9,

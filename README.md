@@ -19,6 +19,14 @@ Fill in `agent_config.json`:
 	"max_mileage": 125001,
 	"currency": "EUR",
 	"exclude_keywords": ["peugeot", "citroen", "citroën"],
+	"padel_alert": {
+		"search_urls": {
+			"Tennis-Point.nl": "https://www.tennis-point.nl/search?q=coello%20motion",
+			"Padelshop.com": "https://padelshop.com/search?q=coello%20motion&type=product"
+		},
+		"max_price": 150,
+		"years": [2025, 2026]
+	},
 	"alert_email": "you@example.com",
 	"timezone": "Europe/Amsterdam",
 	"run_hour": 9,
@@ -65,3 +73,9 @@ python daily_agent.py
 
 The separate `price_agent.py` command checks one product page without OpenAI,
 using structured product data or an unambiguous visible price when available.
+
+The daily workflow also checks HEAD Coello Motion 2025/2026 rackets at
+Tennis-Point.nl and Padelshop.com. It emails qualifying offers separately from
+the car results when a listed price is strictly below EUR 150. Both retailers
+serve the Netherlands; the alert excludes Coello Pro and accessories and only
+matches listings whose title identifies model year 2025 or 2026.

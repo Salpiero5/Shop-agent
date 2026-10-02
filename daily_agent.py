@@ -18,6 +18,10 @@ SEARCH_SITES = {
     "Marktplaats": MARKTPLAATS,
     "AutoScout24": "https://www.autoscout24.nl",
 }
+PRODUCT_SHOPS = {
+    "Tennis-Point.nl": "https://www.tennis-point.nl",
+    "Padelshop.com": "https://padelshop.com",
+}
 
 
 def load_config(path: str) -> dict:
@@ -32,6 +36,24 @@ def load_config(path: str) -> dict:
             f"{site_url}/"
         ):
             raise ValueError(f"Set a valid {source} search URL in search_urls.")
+    padel_alert = config.get("padel_alert")
+    if not isinstance(padel_alert, dict):
+        raise ValueError("Set padel_alert in the config file.")
+    shop_urls = padel_alert.get("search_urls")
+    if not isinstance(shop_urls, dict) or not shop_urls:
+        raise ValueError("Set at least one retailer search URL in padel_alert.")
+    for shop, search_url in shop_urls.items():
+        shop_url = PRODUCT_SHOPS.get(shop)
+        if not shop_url or not isinstance(search_url, str) or not search_url.startswith(
+            f"{shop_url}/"
+        ):
+            raise ValueError(f"Set a valid {shop} search URL in padel_alert.")
+    if not isinstance(padel_alert.get("max_price"), (int, float)) or padel_alert[
+        "max_price"
+    ] <= 0:
+        raise ValueError("Set a positive padel_alert max_price.")
+    if not isinstance(padel_alert.get("years"), list) or not padel_alert["years"]:
+        raise ValueError("Set the allowed model years in padel_alert.")
     if not isinstance(config.get("max_price"), (int, float)) or config["max_price"] <= 0:
         raise ValueError("Set max_price to a positive number in the config file.")
     exclude_keywords = config.get("exclude_keywords", [])
@@ -118,6 +140,47 @@ def search_listings(source: str, search_url: str, max_results: int) -> list[dict
             browser.close()
 
 
+def search_shop_products(shop: str, search_url: str, max_results: int) -> list[dict]:
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            page = browser.new_page(locale="nl-NL")
+            page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(1500)
+            return page.evaluate(
+                """({maxResults, shop}) => {
+                    const shopify = window.ShopifyAnalytics?.meta;
+                    const products = shopify?.products || [];
+                    const currency = shopify?.currency || 'EUR';
+                    const offers = [];
+                    for (const product of products) {
+                        for (const variant of product.variants || []) {
+                            const cents = Number(variant.price);
+                            if (!Number.isFinite(cents)) continue;
+                            const title = variant.name || product.title || product.handle;
+                            const price = (cents / 100).toFixed(2);
+                            offers.push({
+                                id: String(variant.id || product.id),
+                                source: shop,
+                                title,
+                                text: `${product.vendor || ''} ${product.type || ''} ${title}`.trim(),
+                                url: new URL(`/products/${product.handle}`, location.origin).href,
+                                price,
+                                currency
+                            });
+                            if (offers.length >= maxResults) return offers;
+                        }
+                    }
+                    return offers;
+                }""",
+                {"maxResults": max_results, "shop": shop},
+            )
+        finally:
+            browser.close()
+
+
 def parse_price(text: str) -> Decimal | None:
     matches = re.findall(r"€\s*([0-9][0-9. ]*(?:,[0-9]{1,2})?)", text)
     if not matches:
@@ -130,7 +193,9 @@ def parse_price(text: str) -> Decimal | None:
     return price if price.is_finite() and price >= 0 else None
 
 
-def send_email(listings: list[dict], config: dict) -> None:
+def send_email(
+    listings: list[dict], config: dict, heading: str, subject: str
+) -> None:
     sender = os.environ.get("GMAIL_ADDRESS")
     app_password = os.environ.get("GMAIL_APP_PASSWORD")
     recipient = config["alert_email"]
@@ -139,10 +204,7 @@ def send_email(listings: list[dict], config: dict) -> None:
             "Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD as environment secrets."
         )
 
-    lines = [
-        "Matching car listings from " + ", ".join(config["search_urls"]),
-        "",
-    ]
+    lines = [heading, ""]
     for listing in listings:
         lines.extend(
             [
@@ -156,7 +218,7 @@ def send_email(listings: list[dict], config: dict) -> None:
         )
 
     message = EmailMessage()
-    message["Subject"] = f"Car search: {len(listings)} matching listing(s)"
+    message["Subject"] = f"{subject}: {len(listings)} match(es)"
     message["From"] = sender
     message["To"] = recipient
     message.set_content("\n".join(lines))
@@ -196,11 +258,55 @@ def run(config: dict) -> int:
 
     if not priced_listings:
         print(f"No listings matched at or below €{max_price}.")
-        return 0
+    else:
+        send_email(
+            priced_listings,
+            config,
+            "Matching car listings from " + ", ".join(config["search_urls"]),
+            "Car search",
+        )
+        print(f"Sent {len(priced_listings)} matching car listing(s) by email.")
 
-    send_email(priced_listings, config)
-    print(f"Sent {len(priced_listings)} matching listing(s) by email.")
+    run_padel_alert(config)
     return 0
+
+
+def run_padel_alert(config: dict) -> None:
+    alert = config["padel_alert"]
+    max_price = Decimal(str(alert["max_price"]))
+    allowed_years = {str(year) for year in alert["years"]}
+    excluded_terms = [term.casefold() for term in alert.get("exclude_terms", [])]
+    matches = []
+
+    for shop, search_url in alert["search_urls"].items():
+        products = search_shop_products(
+            shop, search_url, int(alert.get("max_results", 30))
+        )
+        for product in products:
+            title = product["title"].casefold()
+            if "coello motion" not in title:
+                continue
+            if not any(year in title for year in allowed_years):
+                continue
+            if any(re.search(rf"\b{re.escape(term)}\b", title) for term in excluded_terms):
+                continue
+            price_value = product.get("price")
+            price = Decimal(str(price_value)) if price_value is not None else None
+            if price is not None and price < max_price:
+                product["price"] = str(price)
+                matches.append(product)
+
+    if not matches:
+        print(f"No Coello Motion {', '.join(sorted(allowed_years))} offers below €{max_price}.")
+        return
+
+    send_email(
+        matches,
+        config,
+        "Padel racket deals from " + ", ".join(alert["search_urls"]),
+        "Padel racket deal",
+    )
+    print(f"Sent {len(matches)} matching padel racket deal(s) by email.")
 
 
 def is_scheduled_run_time(config: dict) -> bool:
