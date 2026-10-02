@@ -1,0 +1,10 @@
+{
+  "search_url": "https://www.marktplaats.nl/l/auto-s/f/benzine+hatchback/473+481/#PriceCentsTo:425000|mileageTo:125001|constructionYearFrom:2013|postcode:3811|distance:75000",
+  "max_price": 4250,
+  "currency": "EUR",
+  "criteria": "Passenger car listed under the petrol hatchback category. Must be in the Netherlands within 75 km of Amersfoort (postcode 3811), have a construction year of 2013 or newer, and mileage no greater than 125,001 km. The search page applies the location and vehicle filters; accept prices up to and including EUR 4,250.",
+  "alert_email": "ssalpiero@gmail.com",
+  "timezone": "Europe/Amsterdam",
+  "run_hour": 9,
+  "max_results": 40
+}

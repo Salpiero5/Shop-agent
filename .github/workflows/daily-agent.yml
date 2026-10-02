@@ -1,0 +1,25 @@
+name: Daily Marktplaats price check
+
+on:
+  schedule:
+    - cron: "0 7,8 * * *"
+  workflow_dispatch:
+
+jobs:
+  check-listings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      - name: Install Chromium
+        run: playwright install --with-deps chromium
+      - name: Search and email matching listings
+        run: python daily_agent.py --config agent_config.json --scheduled
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
