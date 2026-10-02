@@ -1,8 +1,8 @@
 # Shop-agent
 
-A daily rule-based agent that searches Marktplaats, checks listing prices against
-your limit, and emails matching listings. No OpenAI API key or API credits are
-needed.
+A daily rule-based agent that searches Marktplaats and AutoScout24, checks car
+listings against your filters, and emails matches. No OpenAI API key or API
+credits are needed.
 
 ## Configure the search
 
@@ -10,10 +10,15 @@ Fill in `agent_config.json`:
 
 ```json
 {
-	"search_url": "https://www.marktplaats.nl/l/...",
+	"search_urls": {
+		"Marktplaats": "https://www.marktplaats.nl/l/...",
+		"AutoScout24": "https://www.autoscout24.nl/lst?..."
+	},
 	"max_price": 4250,
+	"min_year": 2014,
+	"max_mileage": 125001,
 	"currency": "EUR",
-	"exclude_keywords": ["peugeot"],
+	"exclude_keywords": ["peugeot", "citroen", "citroën"],
 	"alert_email": "you@example.com",
 	"timezone": "Europe/Amsterdam",
 	"run_hour": 9,
@@ -21,10 +26,10 @@ Fill in `agent_config.json`:
 }
 ```
 
-The Marktplaats search URL applies the category, location, year, mileage, and
-price filters. The script also checks each listing's displayed price against
-`max_price` and excludes any listing whose title or text contains an
-`exclude_keywords` entry, case-insensitively.
+Each site's search URL applies the petrol hatchback category, location, year,
+mileage, and price filters. The script also checks listing price, year, and
+mileage when available, and excludes any listing whose title or text contains
+an `exclude_keywords` entry, case-insensitively.
 
 ## Configure GitHub and Gmail
 

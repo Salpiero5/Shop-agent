@@ -14,15 +14,24 @@ from zoneinfo import ZoneInfo
 
 
 MARKTPLAATS = "https://www.marktplaats.nl"
+SEARCH_SITES = {
+    "Marktplaats": MARKTPLAATS,
+    "AutoScout24": "https://www.autoscout24.nl",
+}
 
 
 def load_config(path: str) -> dict:
     with open(path, encoding="utf-8") as config_file:
         config = json.load(config_file)
-    if not isinstance(config.get("search_url"), str) or not config["search_url"].startswith(
-        f"{MARKTPLAATS}/"
-    ):
-        raise ValueError("Set a Marktplaats search_url in the config file.")
+    search_urls = config.get("search_urls")
+    if not isinstance(search_urls, dict) or not search_urls:
+        raise ValueError("Set at least one search URL in search_urls.")
+    for source, search_url in search_urls.items():
+        site_url = SEARCH_SITES.get(source)
+        if not site_url or not isinstance(search_url, str) or not search_url.startswith(
+            f"{site_url}/"
+        ):
+            raise ValueError(f"Set a valid {source} search URL in search_urls.")
     if not isinstance(config.get("max_price"), (int, float)) or config["max_price"] <= 0:
         raise ValueError("Set max_price to a positive number in the config file.")
     exclude_keywords = config.get("exclude_keywords", [])
@@ -35,7 +44,7 @@ def load_config(path: str) -> dict:
     return config
 
 
-def search_listings(search_url: str, max_results: int) -> list[dict]:
+def search_listings(source: str, search_url: str, max_results: int) -> list[dict]:
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as playwright:
@@ -45,7 +54,43 @@ def search_listings(search_url: str, max_results: int) -> list[dict]:
             page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(1500)
             return page.evaluate(
-                """(maxResults) => {
+                """(params) => {
+                    const {maxResults, source} = params;
+                    if (source === 'AutoScout24') {
+                        const schemaElement = document.querySelector(
+                            'script[data-testid="breadcrumbs-json-ld"]'
+                        );
+                        let schemaItems = [];
+                        try {
+                            schemaItems = JSON.parse(schemaElement?.textContent || '{}')
+                                .itemListElement || [];
+                        } catch {}
+                        const cards = Array.from(document.querySelectorAll(
+                            '[data-testid="list-item"]'
+                        ));
+                        return cards.slice(0, maxResults).map((card, index) => {
+                            const guid = card.dataset.guid || '';
+                            const schemaItem = schemaItems.find((item) =>
+                                (item.url || '').endsWith(guid)
+                            );
+                            const registration = card.dataset.firstRegistration || '';
+                            const year = registration.split('-').pop();
+                            return {
+                                id: guid || String(index),
+                                source: 'AutoScout24',
+                                title: card.querySelector('h2')?.innerText.trim()
+                                    || card.innerText.split('\\n')[0],
+                                text: (card.innerText || '').trim().slice(0, 1800),
+                                url: schemaItem?.url
+                                    ? new URL(schemaItem.url, location.origin).href
+                                    : location.href,
+                                price: card.dataset.price || null,
+                                year: year && /^\\d{4}$/.test(year) ? Number(year) : null,
+                                mileage: Number(card.dataset.mileage) || null,
+                                fuel: card.dataset.fuelType || null
+                            };
+                        });
+                    }
                     const seen = new Set();
                     const listings = [];
                     for (const link of document.querySelectorAll('a[href*="/v/"]')) {
@@ -58,6 +103,7 @@ def search_listings(search_url: str, max_results: int) -> list[dict]:
                         if (!text) continue;
                         listings.push({
                             id: String(listings.length),
+                            source: 'Marktplaats',
                             title: image?.title || image?.alt || text.split('\\n')[0],
                             text: text.slice(0, 1800),
                             url: url.href
@@ -66,7 +112,7 @@ def search_listings(search_url: str, max_results: int) -> list[dict]:
                     }
                     return listings;
                 }""",
-                max_results,
+                {"maxResults": max_results, "source": source},
             )
         finally:
             browser.close()
@@ -93,10 +139,14 @@ def send_email(listings: list[dict], config: dict) -> None:
             "Set GMAIL_ADDRESS and GMAIL_APP_PASSWORD as environment secrets."
         )
 
-    lines = [f"Matching Marktplaats listings for: {config['search_url']}", ""]
+    lines = [
+        "Matching car listings from " + ", ".join(config["search_urls"]),
+        "",
+    ]
     for listing in listings:
         lines.extend(
             [
+                f"Source: {listing['source']}",
                 listing["title"],
                 f"Price: €{listing['price']}",
                 listing["text"],
@@ -106,7 +156,7 @@ def send_email(listings: list[dict], config: dict) -> None:
         )
 
     message = EmailMessage()
-    message["Subject"] = f"Marktplaats: {len(listings)} matching listing(s)"
+    message["Subject"] = f"Car search: {len(listings)} matching listing(s)"
     message["From"] = sender
     message["To"] = recipient
     message.set_content("\n".join(lines))
@@ -116,8 +166,14 @@ def send_email(listings: list[dict], config: dict) -> None:
 
 
 def run(config: dict) -> int:
-    listings = search_listings(config["search_url"], int(config.get("max_results", 40)))
+    listings = []
+    for source, search_url in config["search_urls"].items():
+        listings.extend(
+            search_listings(source, search_url, int(config.get("max_results", 40)))
+        )
     max_price = Decimal(str(config["max_price"]))
+    min_year = int(config.get("min_year", 0))
+    max_mileage = int(config.get("max_mileage", 0))
     exclude_keywords = [
         keyword.casefold() for keyword in config.get("exclude_keywords", [])
     ]
@@ -126,7 +182,14 @@ def run(config: dict) -> int:
         searchable_text = f"{listing['title']} {listing['text']}".casefold()
         if any(keyword in searchable_text for keyword in exclude_keywords):
             continue
-        price = parse_price(listing["text"])
+        if listing.get("year") is not None and listing["year"] < min_year:
+            continue
+        if listing.get("mileage") is not None and max_mileage and listing["mileage"] > max_mileage:
+            continue
+        price_value = listing.get("price")
+        price = Decimal(str(price_value)) if price_value is not None else parse_price(
+            listing["text"]
+        )
         if price is not None and price <= max_price:
             listing["price"] = str(price)
             priced_listings.append(listing)

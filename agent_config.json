@@ -1,8 +1,13 @@
 {
-  "search_url": "https://www.marktplaats.nl/l/auto-s/f/benzine+hatchback/473+481/#PriceCentsTo:425000|mileageTo:125001|constructionYearFrom:2016|postcode:3811|distance:75000",
+  "search_urls": {
+    "Marktplaats": "https://www.marktplaats.nl/l/auto-s/f/benzine+hatchback/473+481/#PriceCentsTo:425000|mileageTo:125001|constructionYearFrom:2014|postcode:3811|distance:75000",
+    "AutoScout24": "https://www.autoscout24.nl/lst?atype=C&body=1&cy=NL&fregfrom=2014&fuel=B&kmto=125001&priceto=4250&sort=standard&ustate=N%2CU&zip=3811&zipr=75"
+  },
   "max_price": 4250,
+  "min_year": 2014,
+  "max_mileage": 125001,
   "currency": "EUR",
-  "exclude_keywords": ["peugeot"],
+  "exclude_keywords": ["peugeot", "citroen", "citroën"],
   "alert_email": "ssalpiero@gmail.com",
   "timezone": "Europe/Amsterdam",
   "run_hour": 9,
