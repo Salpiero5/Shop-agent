@@ -13,6 +13,7 @@ Fill in `agent_config.json`:
 	"search_url": "https://www.marktplaats.nl/l/...",
 	"max_price": 4250,
 	"currency": "EUR",
+	"exclude_keywords": ["peugeot"],
 	"alert_email": "you@example.com",
 	"timezone": "Europe/Amsterdam",
 	"run_hour": 9,
@@ -22,7 +23,8 @@ Fill in `agent_config.json`:
 
 The Marktplaats search URL applies the category, location, year, mileage, and
 price filters. The script also checks each listing's displayed price against
-`max_price` before emailing it.
+`max_price` and excludes any listing whose title or text contains an
+`exclude_keywords` entry, case-insensitively.
 
 ## Configure GitHub and Gmail
 

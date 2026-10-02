@@ -1,7 +1,8 @@
 {
-  "search_url": "https://www.marktplaats.nl/l/auto-s/f/benzine+hatchback/473+481/#PriceCentsTo:425000|mileageTo:125001|constructionYearFrom:2013|postcode:3811|distance:75000",
+  "search_url": "https://www.marktplaats.nl/l/auto-s/f/benzine+hatchback/473+481/#PriceCentsTo:425000|mileageTo:125001|constructionYearFrom:2016|postcode:3811|distance:75000",
   "max_price": 4250,
   "currency": "EUR",
+  "exclude_keywords": ["peugeot"],
   "alert_email": "ssalpiero@gmail.com",
   "timezone": "Europe/Amsterdam",
   "run_hour": 9,

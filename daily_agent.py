@@ -25,6 +25,11 @@ def load_config(path: str) -> dict:
         raise ValueError("Set a Marktplaats search_url in the config file.")
     if not isinstance(config.get("max_price"), (int, float)) or config["max_price"] <= 0:
         raise ValueError("Set max_price to a positive number in the config file.")
+    exclude_keywords = config.get("exclude_keywords", [])
+    if not isinstance(exclude_keywords, list) or not all(
+        isinstance(keyword, str) and keyword.strip() for keyword in exclude_keywords
+    ):
+        raise ValueError("exclude_keywords must be a list of non-empty strings.")
     if not isinstance(config.get("alert_email"), str) or "@" not in config["alert_email"]:
         raise ValueError("Set alert_email in the config file.")
     return config
@@ -113,8 +118,14 @@ def send_email(listings: list[dict], config: dict) -> None:
 def run(config: dict) -> int:
     listings = search_listings(config["search_url"], int(config.get("max_results", 40)))
     max_price = Decimal(str(config["max_price"]))
+    exclude_keywords = [
+        keyword.casefold() for keyword in config.get("exclude_keywords", [])
+    ]
     priced_listings = []
     for listing in listings:
+        searchable_text = f"{listing['title']} {listing['text']}".casefold()
+        if any(keyword in searchable_text for keyword in exclude_keywords):
+            continue
         price = parse_price(listing["text"])
         if price is not None and price <= max_price:
             listing["price"] = str(price)
