@@ -1,7 +1,8 @@
 # Shop-agent
 
-A daily agent that searches Marktplaats, checks listing prices against your limit,
-uses an AI model to evaluate your car criteria, and emails matching listings.
+A daily rule-based agent that searches Marktplaats, checks listing prices against
+your limit, and emails matching listings. No OpenAI API key or API credits are
+needed.
 
 ## Configure the search
 
@@ -12,7 +13,6 @@ Fill in `agent_config.json`:
 	"search_url": "https://www.marktplaats.nl/l/...",
 	"max_price": 4250,
 	"currency": "EUR",
-	"criteria": "Required condition, model, location, or other requirements",
 	"alert_email": "you@example.com",
 	"timezone": "Europe/Amsterdam",
 	"run_hour": 9,
@@ -20,8 +20,9 @@ Fill in `agent_config.json`:
 }
 ```
 
-Only listings priced at or below `max_price` are considered. The AI evaluates
-the descriptive criteria; the price limit is checked in code.
+The Marktplaats search URL applies the category, location, year, mileage, and
+price filters. The script also checks each listing's displayed price against
+`max_price` before emailing it.
 
 ## Configure GitHub and Gmail
 
@@ -32,7 +33,6 @@ saving time. Push this repository to GitHub and enable Actions. Add these
 repository Actions secrets under
 **Settings > Secrets and variables > Actions**:
 
-- `OPENAI_API_KEY`
 - `GMAIL_ADDRESS` (the Gmail account that sends the alert)
 - `GMAIL_APP_PASSWORD` (a Google app password, not your normal Gmail password)
 
@@ -51,11 +51,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
-export OPENAI_API_KEY="..."
 export GMAIL_ADDRESS="..."
 export GMAIL_APP_PASSWORD="..."
 python daily_agent.py
 ```
 
-The separate `price_agent.py` command remains available for checking one product
-page directly.
+The separate `price_agent.py` command checks one product page without OpenAI,
+using structured product data or an unambiguous visible price when available.
