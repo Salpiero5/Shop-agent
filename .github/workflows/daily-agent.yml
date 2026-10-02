@@ -18,7 +18,12 @@ jobs:
       - name: Install Chromium
         run: playwright install --with-deps chromium
       - name: Search and email matching listings
-        run: python daily_agent.py --config agent_config.json --scheduled
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
+            python daily_agent.py --config agent_config.json --scheduled
+          else
+            python daily_agent.py --config agent_config.json
+          fi
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
