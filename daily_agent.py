@@ -180,8 +180,9 @@ def run(config: dict, model: str) -> int:
     max_price = Decimal(str(config["max_price"]))
     priced_listings = []
     for listing in listings:
-        listing["price"] = parse_price(listing["text"])
-        if listing["price"] is not None and listing["price"] <= max_price:
+        price = parse_price(listing["text"])
+        if price is not None and price <= max_price:
+            listing["price"] = str(price)
             priced_listings.append(listing)
 
     matches = match_criteria(priced_listings, config["criteria"], model)
