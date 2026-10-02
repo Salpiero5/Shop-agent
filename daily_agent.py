@@ -79,22 +79,34 @@ def search_listings(source: str, search_url: str, max_results: int) -> list[dict
                 """(params) => {
                     const {maxResults, source} = params;
                     if (source === 'AutoScout24') {
-                        const schemaElement = document.querySelector(
-                            'script[data-testid="breadcrumbs-json-ld"]'
-                        );
-                        let schemaItems = [];
-                        try {
-                            schemaItems = JSON.parse(schemaElement?.textContent || '{}')
-                                .itemListElement || [];
-                        } catch {}
+                        const detailUrls = [];
+                        const collectUrls = (value) => {
+                            if (Array.isArray(value)) {
+                                value.forEach(collectUrls);
+                            } else if (value && typeof value === 'object') {
+                                if (typeof value.url === 'string'
+                                    && value.url.includes('/aanbod/')) {
+                                    detailUrls.push(value.url);
+                                }
+                                Object.values(value).forEach(collectUrls);
+                            }
+                        };
+                        for (const script of document.querySelectorAll(
+                            'script[type="application/ld+json"]'
+                        )) {
+                            try {
+                                collectUrls(JSON.parse(script.textContent || 'null'));
+                            } catch {}
+                        }
                         const cards = Array.from(document.querySelectorAll(
                             '[data-testid="list-item"]'
                         ));
                         return cards.slice(0, maxResults).map((card, index) => {
                             const guid = card.dataset.guid || '';
-                            const schemaItem = schemaItems.find((item) =>
-                                (item.url || '').endsWith(guid)
+                            const detailUrl = detailUrls.find((url) =>
+                                url.toLowerCase().includes(guid.toLowerCase())
                             );
+                            if (!guid || !detailUrl) return null;
                             const registration = card.dataset.firstRegistration || '';
                             const year = registration.split('-').pop();
                             return {
@@ -103,15 +115,13 @@ def search_listings(source: str, search_url: str, max_results: int) -> list[dict
                                 title: card.querySelector('h2')?.innerText.trim()
                                     || card.innerText.split('\\n')[0],
                                 text: (card.innerText || '').trim().slice(0, 1800),
-                                url: schemaItem?.url
-                                    ? new URL(schemaItem.url, location.origin).href
-                                    : location.href,
+                                url: new URL(detailUrl, location.origin).href,
                                 price: card.dataset.price || null,
                                 year: year && /^\\d{4}$/.test(year) ? Number(year) : null,
                                 mileage: Number(card.dataset.mileage) || null,
                                 fuel: card.dataset.fuelType || null
                             };
-                        });
+                        }).filter(Boolean);
                     }
                     const seen = new Set();
                     const listings = [];
