@@ -101,7 +101,7 @@ def send_email(listings: list[dict], config: dict) -> None:
         )
 
     message = EmailMessage()
-    message["Subject"] = f"Marktplaats: {len(matches)} matching listing(s)"
+    message["Subject"] = f"Marktplaats: {len(listings)} matching listing(s)"
     message["From"] = sender
     message["To"] = recipient
     message.set_content("\n".join(lines))
