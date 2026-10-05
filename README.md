@@ -37,7 +37,7 @@ Fill in `agent_config.json`:
 ```
 
 The car search targets manual Ford Fiesta listings first registered in 2012
-or later, with fewer than 131,000 km and a price no higher than the configured
+or later, with no more than 131,000 km and a price no higher than the configured
 maximum. Listings must identify the make, model, year, mileage, and manual
 transmission in their title or listing details to qualify.
 

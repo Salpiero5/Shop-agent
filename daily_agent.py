@@ -108,7 +108,7 @@ def search_listings(source: str, search_url: str, max_results: int) -> list[dict
                             );
                             if (!guid || !detailUrl) return null;
                             const registration = card.dataset.firstRegistration || '';
-                            const year = registration.split('-').pop();
+                            const year = registration.match(/(?:19|20)\\d{2}/)?.[0];
                             return {
                                 id: guid || String(index),
                                 source: 'AutoScout24',
@@ -118,7 +118,7 @@ def search_listings(source: str, search_url: str, max_results: int) -> list[dict
                                 url: new URL(detailUrl, location.origin).href,
                                 price: card.dataset.price || null,
                                 year: year && /^\\d{4}$/.test(year) ? Number(year) : null,
-                                mileage: Number(card.dataset.mileage) || null,
+                                mileage: card.dataset.mileage || null,
                                 fuel: card.dataset.fuelType || null,
                                 transmission: card.dataset.transmissionType || null
                             };
@@ -206,27 +206,39 @@ def parse_price(text: str) -> Decimal | None:
 
 def extract_year(listing: dict) -> int | None:
     if listing.get("year") is not None:
-        return int(listing["year"])
+        match = re.search(r"\b(?:19|20)\d{2}\b", str(listing["year"]))
+        if match:
+            return int(match.group())
     match = re.search(r"\b(?:19|20)\d{2}\b", listing["text"])
     return int(match.group()) if match else None
 
 
+def parse_mileage(value: object) -> int | None:
+    if value is None:
+        return None
+    digits = re.sub(r"\D", "", str(value))
+    return int(digits) if 4 <= len(digits) <= 6 else None
+
+
 def extract_mileage(listing: dict) -> int | None:
-    if listing.get("mileage") is not None:
-        return int(listing["mileage"])
+    mileage = parse_mileage(listing.get("mileage"))
+    if mileage is not None:
+        return mileage
     match = re.search(
-        r"(?<!\d)(\d{1,3}(?:[.\s]\d{3})+|\d{4,6})\s*km\b",
+        r"(?<!\d)(\d{1,3}(?:[.,\s]\d{3})+|\d{4,6})\s*km\b",
         listing["text"],
         re.IGNORECASE,
     )
-    return int(re.sub(r"[.\s]", "", match.group(1))) if match else None
+    return int(re.sub(r"[.,\s]", "", match.group(1))) if match else None
 
 
 def has_transmission(listing: dict, required_transmission: str) -> bool:
     transmission = str(listing.get("transmission") or "").casefold()
     text = f"{transmission} {listing['text']}".casefold()
     if required_transmission.casefold() == "manual":
-        return bool(re.search(r"\b(manual|manueel|handgeschakeld)\b", text))
+        return bool(
+            re.search(r"\b(manual|manueel|handgeschakeld|schakelbak|schaltgetriebe)\b", text)
+        )
     return bool(re.search(rf"\b{re.escape(required_transmission.casefold())}\b", text))
 
 
@@ -276,19 +288,30 @@ def run(config: dict) -> int:
     make = str(config.get("make", "Ford")).casefold()
     model = str(config.get("model", "Fiesta")).casefold()
     priced_listings = []
+    rejected = {
+        "make/model": 0,
+        "year": 0,
+        "mileage": 0,
+        "transmission": 0,
+        "price": 0,
+    }
     for listing in listings:
-        title = listing["title"].casefold()
-        if not re.search(rf"\b{re.escape(make)}\b", title) or not re.search(
-            rf"\b{re.escape(model)}\b", title
+        searchable_text = f"{listing['title']} {listing['text']}".casefold()
+        if not re.search(rf"\b{re.escape(make)}\b", searchable_text) or not re.search(
+            rf"\b{re.escape(model)}\b", searchable_text
         ):
+            rejected["make/model"] += 1
             continue
         year = extract_year(listing)
         if year is None or year < min_year:
+            rejected["year"] += 1
             continue
         mileage = extract_mileage(listing)
-        if mileage is None or (max_mileage and mileage >= max_mileage):
+        if mileage is None or (max_mileage and mileage > max_mileage):
+            rejected["mileage"] += 1
             continue
         if not has_transmission(listing, config.get("transmission", "manual")):
+            rejected["transmission"] += 1
             continue
         price_value = listing.get("price")
         price = Decimal(str(price_value)) if price_value is not None else parse_price(
@@ -297,7 +320,13 @@ def run(config: dict) -> int:
         if price is not None and price <= max_price:
             listing["price"] = str(price)
             priced_listings.append(listing)
+        else:
+            rejected["price"] += 1
 
+    print(f"Fetched {len(listings)} car listing(s); {len(priced_listings)} matched.")
+    print("Listings excluded by filter: " + ", ".join(
+        f"{filter_name}={count}" for filter_name, count in rejected.items()
+    ))
     if not priced_listings:
         print(f"No listings matched at or below €{max_price}.")
     else:
