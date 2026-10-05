@@ -11,14 +11,16 @@ Fill in `agent_config.json`:
 ```json
 {
 	"search_urls": {
-		"Marktplaats": "https://www.marktplaats.nl/l/...",
+		"Marktplaats": "https://www.marktplaats.nl/q/ford+fiesta+handgeschakeld/",
 		"AutoScout24": "https://www.autoscout24.nl/lst?..."
 	},
 	"max_price": 4250,
-	"min_year": 2014,
-	"max_mileage": 125001,
+	"min_year": 2013,
+	"max_mileage": 121000,
+	"make": "Ford",
+	"model": "Fiesta",
+	"transmission": "manual",
 	"currency": "EUR",
-	"exclude_keywords": ["peugeot", "citroen", "citroën"],
 	"padel_alert": {
 		"search_urls": {
 			"Tennis-Point.nl": "https://www.tennis-point.nl/search?q=coello%20motion",
@@ -34,17 +36,19 @@ Fill in `agent_config.json`:
 }
 ```
 
-Each site's search URL applies the petrol hatchback category, location, year,
-mileage, and price filters. The script also checks listing price, year, and
-mileage when available, and excludes any listing whose title or text contains
-an `exclude_keywords` entry, case-insensitively.
+The car search targets manual Ford Fiesta listings first registered in 2013
+or later, with fewer than 121,000 km and a price no higher than the configured
+maximum. Listings must identify the make, model, year, mileage, and manual
+transmission in their title or listing details to qualify.
 
 ## Configure GitHub and Gmail
 
-The daily schedule runs at 09:00 in the configured timezone. Since GitHub
-scheduled workflows use UTC, the workflow triggers at 07:00 and 08:00 UTC and
-the script runs only during the local 09:00 window, accounting for daylight
-saving time. Push this repository to GitHub and enable Actions. Add these
+The daily schedule targets 09:00 in the configured timezone. Since GitHub
+scheduled workflows use UTC, it triggers at 07:17 and 08:17 UTC; the script
+selects the trigger matching the configured timezone's daylight-saving offset.
+If GitHub starts the selected run late, it still searches instead of silently
+skipping it. GitHub Actions schedules are best-effort and may be delayed or
+dropped. Push this repository to GitHub and enable Actions. Add these
 repository Actions secrets under
 **Settings > Secrets and variables > Actions**:
 
@@ -55,7 +59,8 @@ The recipient address is configured in `agent_config.json`. The workflow also
 supports manual runs from the GitHub Actions tab. It checks the first
 `max_results` listings returned by Marktplaats. Automated access can be limited
 by the site, and scheduled GitHub Actions runs may start a little after their
-scheduled time.
+scheduled time. The agent sends emails only when it finds qualifying listings;
+a successful run with no email can mean there were no matches.
 
 ## Run locally
 

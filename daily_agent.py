@@ -119,7 +119,8 @@ def search_listings(source: str, search_url: str, max_results: int) -> list[dict
                                 price: card.dataset.price || null,
                                 year: year && /^\\d{4}$/.test(year) ? Number(year) : null,
                                 mileage: Number(card.dataset.mileage) || null,
-                                fuel: card.dataset.fuelType || null
+                                fuel: card.dataset.fuelType || null,
+                                transmission: card.dataset.transmissionType || null
                             };
                         }).filter(Boolean);
                     }
@@ -203,6 +204,32 @@ def parse_price(text: str) -> Decimal | None:
     return price if price.is_finite() and price >= 0 else None
 
 
+def extract_year(listing: dict) -> int | None:
+    if listing.get("year") is not None:
+        return int(listing["year"])
+    match = re.search(r"\b(?:19|20)\d{2}\b", listing["text"])
+    return int(match.group()) if match else None
+
+
+def extract_mileage(listing: dict) -> int | None:
+    if listing.get("mileage") is not None:
+        return int(listing["mileage"])
+    match = re.search(
+        r"(?<!\d)(\d{1,3}(?:[.\s]\d{3})+|\d{4,6})\s*km\b",
+        listing["text"],
+        re.IGNORECASE,
+    )
+    return int(re.sub(r"[.\s]", "", match.group(1))) if match else None
+
+
+def has_transmission(listing: dict, required_transmission: str) -> bool:
+    transmission = str(listing.get("transmission") or "").casefold()
+    text = f"{transmission} {listing['text']}".casefold()
+    if required_transmission.casefold() == "manual":
+        return bool(re.search(r"\b(manual|manueel|handgeschakeld)\b", text))
+    return bool(re.search(rf"\b{re.escape(required_transmission.casefold())}\b", text))
+
+
 def send_email(
     listings: list[dict], config: dict, heading: str, subject: str
 ) -> None:
@@ -246,17 +273,22 @@ def run(config: dict) -> int:
     max_price = Decimal(str(config["max_price"]))
     min_year = int(config.get("min_year", 0))
     max_mileage = int(config.get("max_mileage", 0))
-    exclude_keywords = [
-        keyword.casefold() for keyword in config.get("exclude_keywords", [])
-    ]
+    make = str(config.get("make", "Ford")).casefold()
+    model = str(config.get("model", "Fiesta")).casefold()
     priced_listings = []
     for listing in listings:
-        searchable_text = f"{listing['title']} {listing['text']}".casefold()
-        if any(keyword in searchable_text for keyword in exclude_keywords):
+        title = listing["title"].casefold()
+        if not re.search(rf"\b{re.escape(make)}\b", title) or not re.search(
+            rf"\b{re.escape(model)}\b", title
+        ):
             continue
-        if listing.get("year") is not None and listing["year"] < min_year:
+        year = extract_year(listing)
+        if year is None or year < min_year:
             continue
-        if listing.get("mileage") is not None and max_mileage and listing["mileage"] > max_mileage:
+        mileage = extract_mileage(listing)
+        if mileage is None or (max_mileage and mileage >= max_mileage):
+            continue
+        if not has_transmission(listing, config.get("transmission", "manual")):
             continue
         price_value = listing.get("price")
         price = Decimal(str(price_value)) if price_value is not None else parse_price(
@@ -319,25 +351,28 @@ def run_padel_alert(config: dict) -> None:
     print(f"Sent {len(matches)} matching padel racket deal(s) by email.")
 
 
-def is_scheduled_run_time(config: dict) -> bool:
+def expected_schedule_cron(config: dict, now: datetime | None = None) -> str:
     timezone = ZoneInfo(config.get("timezone", "Europe/Amsterdam"))
-    now = datetime.now(timezone)
-    return now.hour == int(config.get("run_hour", 9))
+    local_now = (now or datetime.now(timezone)).astimezone(timezone)
+    utc_offset = local_now.utcoffset()
+    if utc_offset is None:
+        raise ValueError("The configured timezone must have a UTC offset.")
+    utc_hour = (int(config.get("run_hour", 9)) - int(utc_offset.total_seconds() // 3600)) % 24
+    return f"17 {utc_hour} * * *"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Search Marktplaats and email matching listings.")
     parser.add_argument("--config", default="agent_config.json", help="Path to the agent JSON config")
     parser.add_argument(
-        "--scheduled",
-        action="store_true",
-        help="Skip the run unless it is the configured local schedule time",
+        "--scheduled-cron",
+        help="Run only when this is the DST-adjusted UTC schedule for the configured local time",
     )
     args = parser.parse_args()
     try:
         config = load_config(args.config)
-        if args.scheduled and not is_scheduled_run_time(config):
-            print("Skipping this UTC trigger; it is not 09:00 in the configured timezone.")
+        if args.scheduled_cron and args.scheduled_cron != expected_schedule_cron(config):
+            print("Skipping this UTC trigger; it is not the configured local-time schedule.")
             return 0
         return run(config)
     except Exception as error:
