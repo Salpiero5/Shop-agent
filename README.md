@@ -59,8 +59,8 @@ The recipient address is configured in `agent_config.json`. The workflow also
 supports manual runs from the GitHub Actions tab. It checks the first
 `max_results` listings returned by Marktplaats. Automated access can be limited
 by the site, and scheduled GitHub Actions runs may start a little after their
-scheduled time. The agent sends emails only when it finds qualifying listings;
-a successful run with no email can mean there were no matches.
+scheduled time. Matching listings are emailed as alerts; if neither search
+finds a match, the agent sends a no-match status email instead.
 
 ## Run locally
 

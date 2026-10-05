@@ -309,11 +309,20 @@ def run(config: dict) -> int:
         )
         print(f"Sent {len(priced_listings)} matching car listing(s) by email.")
 
-    run_padel_alert(config)
+    padel_matches_found = run_padel_alert(config)
+    if not priced_listings and not padel_matches_found:
+        send_email(
+            [],
+            config,
+            "The daily search completed, but found no qualifying Ford Fiesta listings "
+            "or Coello Motion offers.",
+            "Daily search",
+        )
+        print("Sent a no-match status email.")
     return 0
 
 
-def run_padel_alert(config: dict) -> None:
+def run_padel_alert(config: dict) -> bool:
     alert = config["padel_alert"]
     max_price = Decimal(str(alert["max_price"]))
     allowed_years = {str(year) for year in alert["years"]}
@@ -340,7 +349,7 @@ def run_padel_alert(config: dict) -> None:
 
     if not matches:
         print(f"No Coello Motion {', '.join(sorted(allowed_years))} offers below €{max_price}.")
-        return
+        return False
 
     send_email(
         matches,
@@ -349,6 +358,7 @@ def run_padel_alert(config: dict) -> None:
         "Padel racket deal",
     )
     print(f"Sent {len(matches)} matching padel racket deal(s) by email.")
+    return True
 
 
 def expected_schedule_cron(config: dict, now: datetime | None = None) -> str:
