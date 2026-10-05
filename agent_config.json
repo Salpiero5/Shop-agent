@@ -1,11 +1,11 @@
 {
   "search_urls": {
     "Marktplaats": "https://www.marktplaats.nl/q/ford+fiesta+handgeschakeld/",
-    "AutoScout24": "https://www.autoscout24.nl/lst?atype=C&cy=NL&fregfrom=2013&gear=MANUAL&kmto=120999&make=Ford&model=Fiesta&priceto=4250&sort=standard&ustate=N%2CU"
+    "AutoScout24": "https://www.autoscout24.nl/lst?atype=C&cy=NL&fregfrom=2012&gear=MANUAL&kmto=130999&make=Ford&model=Fiesta&priceto=4500&sort=standard&ustate=N%2CU"
   },
-  "max_price": 4250,
-  "min_year": 2013,
-  "max_mileage": 121000,
+  "max_price": 4500,
+  "min_year": 2012,
+  "max_mileage": 131000,
   "make": "Ford",
   "model": "Fiesta",
   "transmission": "manual",

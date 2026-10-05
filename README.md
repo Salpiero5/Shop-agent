@@ -14,9 +14,9 @@ Fill in `agent_config.json`:
 		"Marktplaats": "https://www.marktplaats.nl/q/ford+fiesta+handgeschakeld/",
 		"AutoScout24": "https://www.autoscout24.nl/lst?..."
 	},
-	"max_price": 4250,
-	"min_year": 2013,
-	"max_mileage": 121000,
+	"max_price": 4500,
+	"min_year": 2012,
+	"max_mileage": 131000,
 	"make": "Ford",
 	"model": "Fiesta",
 	"transmission": "manual",
@@ -36,8 +36,8 @@ Fill in `agent_config.json`:
 }
 ```
 
-The car search targets manual Ford Fiesta listings first registered in 2013
-or later, with fewer than 121,000 km and a price no higher than the configured
+The car search targets manual Ford Fiesta listings first registered in 2012
+or later, with fewer than 131,000 km and a price no higher than the configured
 maximum. Listings must identify the make, model, year, mileage, and manual
 transmission in their title or listing details to qualify.
 
